@@ -19,6 +19,7 @@
 - **Optional AI analysis (`--ai`)**: a Google ADK agent on Gemini explains the ranking and writes a detailed plan, using only read-only tools.
 - **Guardrails in code, not just in the prompt**: tool allowlist, budgets, argument checks, secret / personal-data masking, prompt-injection flags, and verification of the model's answer against fetched evidence (see [Security & Privacy](#security--privacy-considerations)).
 - **Text or JSON output** (`--format json`).
+- **Chat in the ADK Web UI** (`adk web adk_web`): ask in plain language, the agent calls the same read-only tools with the same guardrails.
 - **Strictly read-only**: no comments, labels, branches, commits, or pull requests are ever created.
 
 ---
@@ -72,6 +73,8 @@ If the AI layer is not configured or fails, the deterministic results are still 
 | `guardrails.py` | Masking, truncation, injection detection, output verification, path checks |
 | `agent.py` / `prompts.py` | Optional ADK agent, tools, callbacks, prompts |
 | `output.py` | Terminal and JSON rendering |
+| `web_agent.py` | Conversational agent for the ADK Web UI, with per-conversation guardrails |
+| `adk_web/good_first_issue/agent.py` | Entry point that `adk web` loads (`root_agent`) |
 
 ---
 
@@ -156,6 +159,14 @@ python -m good_first_issue_agent --source glitchtip --base-url https://glitchtip
 # AI on error-tracker data needs an explicit opt-in, because the data is private:
 python -m good_first_issue_agent --source sentry --org my-org --project web-app --ai --allow-private-data-to-ai
 ```
+
+### Chat in the ADK Web UI
+
+```bash
+adk web adk_web        # from agents/good-first-issue-agent, with the virtual environment active
+```
+
+Open http://127.0.0.1:8000, choose **good_first_issue**, and ask, for example: *"Find me an approachable issue in pandas-dev/pandas"*, then *"Plan #44957 for me"*. It needs `GOOGLE_API_KEY`. If the default model is busy, start it with `GEMINI_MODEL=gemini-flash-lite-latest adk web adk_web`. The web server is ADK's local development server: it has no login, so do not expose it to a network. A real conversation is in [`examples/adk-web-chat.txt`](examples/adk-web-chat.txt).
 
 Run `python -m good_first_issue_agent --help` for all options. Limits: `--limit` 1–50 (default 20), `--top` 1–50 (default 5), `--timeout` 1–60 seconds (default 10).
 
@@ -393,6 +404,7 @@ The tests do not use the network or a real model. HTTP is replaced by a fake ses
 - Guardrails: secret masking, injection detection, output verification, path traversal
 - Agent: tool allowlist, candidate-only issue access, `.env` and `..` refusal, tool and model budgets, timeouts, quota errors, empty answers, missing key
 - CLI: `--help` as a module, option validation, JSON output, AI fallback, opt-in for AI on error-tracker data, terminal escape sequences stripped
+- ADK Web agent: repositories only from the user's own messages (not from issue text), comments only for fetched issues, `.env` and `..` refused, per-message tool budget, answer verification, and that `adk web` can load `root_agent`
 
 ---
 
@@ -424,6 +436,7 @@ The tests do not use the network or a real model. HTTP is replaced by a fake ses
   - At most 6 tool calls and 8 model calls per attempt, 40 seconds per Gemini request, 60 seconds per attempt, at most two attempts, and an output-length cap.
   - Tool results are masked for secrets and personal data before the model sees them.
   - The final answer is masked again; issue numbers and file paths not found in the fetched evidence are marked `[unverified]` and listed as warnings.
+- **ADK Web UI guardrails**: a tool may only use a repository that the user wrote in the conversation. A repository named only inside issue text, comments or files is refused, so injected text cannot redirect the agent. The other rules are the same as in the CLI. Error trackers are not offered in the web UI because their data is private. `adk web` stores chat history locally in `adk_web/good_first_issue/.adk/`, which is git-ignored.
 - **Data privacy**: in GitHub mode only public issue data (and, with `--ai`, the selected issue's text) leaves your machine. Error-tracker data is private: emails, IP addresses and secret-like values are masked when fetched; local variables, request data, user data and breadcrumbs are never read; and `--ai` requires `--allow-private-data-to-ai` before anything is sent to Gemini.
 - **TLS**: certificates are verified with the operating system's trust store (`truststore`), so the tool works behind inspecting proxies without turning verification off.
 

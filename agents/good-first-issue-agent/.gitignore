@@ -36,3 +36,6 @@ Thumbs.db
 .vscode/
 *.swp
 *~
+
+# ADK Web local session data (chat history)
+.adk/
